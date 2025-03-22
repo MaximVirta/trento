@@ -58,7 +58,7 @@ class Nucleus {
   /// \return a smart pointer \c std::unique_ptr<Nucleus>
   ///
   /// \throw std::invalid_argument for unknown species
-  static NucleusPtr create(const std::string& species, double nucleon_dmin = 0);
+  static NucleusPtr create(const std::string& species, double nucleon_dmin = 0, double _a0 = 0.546, double _beta2 = 0, double _beta3 = 0, double _beta4 = 0, double _gamma = 0);
 
   /// Default virtual destructor for abstract base class.
   virtual ~Nucleus() = default;
@@ -250,7 +250,7 @@ class DeformedWoodsSaxonNucleus : public MinDistNucleus {
   /// \param beta4 Woods-Saxon deformation parameter
   /// \param dmin minimum nucleon-nucleon distance (optional, default zero)
   DeformedWoodsSaxonNucleus(std::size_t A, double R, double a,
-                            double beta2, double beta4, double dmin = 0);
+                            double beta2, double beta3, double beta4, double dmin = 0, double gamma = 0);
 
   /// The radius of a deformed Woods-Saxon Nucleus is computed from the
   /// parameters (R, a, beta2, beta4).
@@ -261,10 +261,10 @@ class DeformedWoodsSaxonNucleus : public MinDistNucleus {
   virtual void sample_nucleons_impl() override;
 
   /// Evaluate the deformed Woods-Saxon distribution.
-  double deformed_woods_saxon_dist(double r, double cos_theta) const;
+  double deformed_woods_saxon_dist(double r, double cos_theta, double phi, double gamma) const;
 
   /// Woods-Saxon parameters.
-  const double R_, a_, beta2_, beta4_;
+  const double R_, a_, beta2_, beta3_, beta4_, gamma_;
 
   /// Maximum radius.
   const double rmax_;

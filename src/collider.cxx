@@ -27,7 +27,21 @@ NucleusPtr create_nucleus(const VarMap& var_map, std::size_t index) {
   const auto& species = var_map["projectile"]
                         .as<std::vector<std::string>>().at(index);
   const auto& nucleon_dmin = var_map["nucleon-min-dist"].as<double>();
-  return Nucleus::create(species, nucleon_dmin);
+  const auto& a0 = var_map["a0"].as<double>();
+  const auto& gamma_mean = var_map["y-mean"].as<double>();
+  const auto& gamma_std = var_map["y-std"].as<double>();
+  const auto& beta2_mean = var_map["beta2-mean"].as<double>();
+  const auto& beta2_std = var_map["beta2-std"].as<double>();
+  const auto& beta3 = var_map["beta3"].as<double>();
+  const auto& beta4 = var_map["beta4"].as<double>();
+
+  std::normal_distribution<double> ndist_gamma(gamma_mean, gamma_std); 
+  double gamma = ndist_gamma(random::engine);
+
+  std::normal_distribution<double> ndist_beta2(beta2_mean, beta2_std); 
+  double beta2 = ndist_beta2(random::engine);
+
+  return Nucleus::create(species, nucleon_dmin, a0, beta2, beta3, beta4, gamma);
 }
 
 // Determine the maximum impact parameter.  If the configuration contains a
@@ -64,6 +78,7 @@ Collider::Collider(const VarMap& var_map)
       nucleon_common_(var_map),
       nevents_(var_map["number-events"].as<int>()),
       calc_ncoll_(var_map["ncoll"].as<bool>()),
+      calc_toColl_(var_map["toColl"].as<bool>()),
       bmin_(var_map["b-min"].as<double>()),
       bmax_(determine_bmax(var_map, *nucleusA_, *nucleusB_, nucleon_common_)),
       asymmetry_(determine_asym(*nucleusA_, *nucleusB_)),
@@ -87,17 +102,18 @@ void Collider::run_events() {
     auto collision_attr = sample_collision();
     double b = std::get<0>(collision_attr);
     int ncoll = std::get<1>(collision_attr);
+    int nToCollide = std::get<2>(collision_attr);
 
     // Pass the prepared nuclei to the Event.  It computes the entropy profile
     // (thickness grid) and other event observables.
     event_.compute(*nucleusA_, *nucleusB_, nucleon_common_);
 
     // Write event data.
-    output_(n, b, ncoll, event_);
+    output_(n, b, ncoll, nToCollide, event_);
   }
 }
 
-std::tuple<double, int> Collider::sample_collision() {
+std::tuple<double, int, int> Collider::sample_collision() {
   // Sample impact parameters until at least one nucleon-nucleon pair
   // participates.  The bool 'collision' keeps track -- it is effectively a
   // logical OR over all possible participant pairs.
@@ -105,6 +121,7 @@ std::tuple<double, int> Collider::sample_collision() {
   double b;
   int ncoll = 0;
   bool collision = false;
+  int nToCollide = 0;
 
   do {
     // Sample b from P(b)db = 2*pi*b.
@@ -122,9 +139,10 @@ std::tuple<double, int> Collider::sample_collision() {
         collision = new_collision || collision;
       }
     }
+    if (calc_toColl_) nToCollide++;
   } while (!collision);
 
-  return std::make_tuple(b, ncoll);
+  return std::make_tuple(b, ncoll, nToCollide);
 }
 
 }  // namespace trento

@@ -23,7 +23,7 @@ namespace {
 // These output functions are invoked by the Output class.
 
 void write_stream(std::ostream& os, int width, int num, double impact_param,
-    int ncoll, const Event& event) {
+    int ncoll, int nToCollide, const Event& event) {
   using std::fixed;
   using std::setprecision;
   using std::setw;
@@ -37,6 +37,7 @@ void write_stream(std::ostream& os, int width, int num, double impact_param,
 
   // Output ncoll if calculated
   if (ncoll > 0) os << setw(6) << ncoll;
+  if (nToCollide > 0) os << setw(6) << nToCollide;
 
   os << setw(18) << scientific << event.multiplicity()
      << fixed;
@@ -48,7 +49,7 @@ void write_stream(std::ostream& os, int width, int num, double impact_param,
 }
 
 void write_text_file(const fs::path& output_dir, int width, int num,
-    double impact_param, int ncoll, const Event& event, bool header) {
+    double impact_param, int ncoll, int nToCollide, const Event& event, bool header) {
   // Open a numbered file in the output directory.
   // Pad the filename with zeros.
   std::ostringstream padded_fname{};
@@ -64,6 +65,7 @@ void write_text_file(const fs::path& output_dir, int width, int num,
 
     // Output ncoll if calculated
     if (ncoll > 0) ofs << "# ncoll = " << ncoll << '\n';
+    if (nToCollide > 0) ofs << "# nToCollide = " << nToCollide << '\n';
 
     ofs << "# mult  = " << event.multiplicity() << '\n';
 
@@ -97,7 +99,7 @@ class HDF5Writer {
 
   /// Write an event.
   void operator()(int num, double impact_param,
-      int ncoll, const Event& event) const;
+      int ncoll, int nToCollide, const Event& event) const;
 
  private:
   /// Internal storage of the file object.
@@ -118,7 +120,7 @@ HDF5Writer::HDF5Writer(const fs::path& filename)
 {}
 
 void HDF5Writer::operator()(int num, double impact_param,
-    int ncoll, const Event& event) const {
+    int ncoll, int nToCollide, const Event& event) const {
   // Prepare arguments for new HDF5 dataset.
 
   // The dataset name is a prefix plus the event number.
@@ -153,6 +155,7 @@ void HDF5Writer::operator()(int num, double impact_param,
 
   // Write ncoll if calculated
   if (ncoll > 0) hdf5_add_scalar_attr(dataset, "ncoll", ncoll);
+  if (nToCollide > 0) hdf5_add_scalar_attr(dataset, "nToCollide", nToCollide);
 
   hdf5_add_scalar_attr(dataset, "mult", event.multiplicity());
   for (const auto& ecc : event.eccentricity())
@@ -173,8 +176,8 @@ Output::Output(const VarMap& var_map) {
   // Write to stdout unless the quiet option was specified.
   if (!var_map["quiet"].as<bool>()) {
     writers_.emplace_back(
-      [width](int num, double impact_param, int ncoll, const Event& event) {
-        write_stream(std::cout, width, num, impact_param, ncoll, event);
+      [width](int num, double impact_param, int ncoll, int nToCollide, const Event& event) {
+        write_stream(std::cout, width, num, impact_param, ncoll, nToCollide, event);
       }
     );
   }
@@ -207,9 +210,9 @@ Output::Output(const VarMap& var_map) {
       auto header = !var_map["no-header"].as<bool>();
       writers_.emplace_back(
         [output_path, width, header](int num, double impact_param,
-          int ncoll, const Event& event) {
+          int ncoll, int nToCollide, const Event& event) {
           write_text_file(output_path, width, num,
-              impact_param, ncoll, event, header);
+              impact_param, ncoll, nToCollide, event, header);
         }
       );
     }

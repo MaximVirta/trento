@@ -102,7 +102,9 @@ int main(int argc, char* argv[]) {
     ("no-header", po::bool_switch(),
      "do not write headers to text files")
     ("ncoll", po::bool_switch(),
-     "calculate binary collisions");
+     "calculate binary collisions")
+    ("toColl", po::bool_switch(),
+     "calculate hadronic cross-section");
 
   OptDesc phys_opts{"physical options"};
   phys_opts.add_options()
@@ -136,6 +138,27 @@ int main(int argc, char* argv[]) {
     ("b-max",
      po::value<double>()->value_name("FLOAT")->default_value(-1., "auto"),
      "maximum impact parameter [fm]")
+    ("a0",
+     po::value<double>()->value_name("FLOAT")->default_value(0.546, "auto"),
+     "Wood-Saxon diffusion")
+    ("y-std",
+     po::value<double>()->value_name("FLOAT")->default_value(0.5, "auto"),
+     "standard deviation of gamma")
+    ("y-mean",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "mean value of gamma")
+    ("beta2-mean",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "beta_2 mean value")
+    ("beta2-std",
+     po::value<double>()->value_name("FLOAT")->default_value(0.5, "auto"),
+     "beta_2 variance")
+    ("beta3",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "beta_3 value")
+    ("beta4",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "beta_4 value")
     ("random-seed",
      po::value<int64_t>()->value_name("INT")->default_value(-1, "auto"),
      "random seed");
@@ -183,7 +206,7 @@ int main(int argc, char* argv[]) {
       std::cout
         << usage_str
         << "\n"
-           "projectile = { p | d | Cu | Cu2 | Xe | Au | Au2 | Pb | U | U2 | U3 }\n"
+           "projectile = { p | d | Cu | Cu2 | Xe | Xe2 | Xe3 | Au | Au2 | Pb | Pb2 | U | U2 | U3 }\n"
         << usage_opts
         << "\n"
            "see the online documentation for complete usage information\n";

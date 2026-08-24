@@ -54,7 +54,7 @@ inline typename std::enable_if<
   H5::DataSpace
 >::type
 make_dataspace(const Container& shape) {
-  return H5::DataSpace{shape.size(), shape.data()};
+  return H5::DataSpace{static_cast<int>(shape.size()), shape.data()};
 }
 
 #endif  // TRENTO_HDF5

@@ -23,6 +23,15 @@ using Engine = std::mt19937_64;
 /// Global variable defined in \c random.cxx.
 extern Engine engine;
 
+extern std::poisson_distribution<int> poissondist;
+
+void setDistribution(double lambda = 1.0);
+
+/// Helper function to generate discrete random numbers from a Poisson distribution.
+inline int poisson() {
+  return poissondist(engine);
+}
+
 /// Helper function to easily generate random numbers in [0, 1).
 template <typename RealType = double>
 inline RealType canonical() {

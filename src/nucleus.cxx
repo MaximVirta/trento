@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -25,20 +27,53 @@
 
 namespace trento {
 
-NucleusPtr Nucleus::create(const std::string& species, double nucleon_dmin) {
+double correct_a(double a, double w) {
+   constexpr auto c = 0.61;  // correction coefficient
+   constexpr auto a_min = 0.01;  // min. value (prevent div. by zero, etc.)
+   return std::sqrt(std::fmax(a*a - c*c*w*w, a_min*a_min));
+}
+
+NucleusPtr Nucleus::create(const std::string& species, double nucleon_dmin, double _a0, double _beta2, double _beta3, double _beta4, double _gamma, const std::string& nucleusConfigPath, double _R_p, double _R_n, double _a_n) {
   // W-S params ref. in header
   // XXX: remember to add new species to the help output in main() and the readme
   if (species == "p")
     return NucleusPtr{new Proton{}};
   else if (species == "d")
     return NucleusPtr{new Deuteron{}};
+  else if (species == "O") {
+    if (nucleusConfigPath==""){
+      return NucleusPtr{new WoodsSaxonNucleus{
+        // Dummy values, need to update
+        16, 2.2, 0.5, nucleon_dmin
+      }};
+    } else {
+      return ManualNucleus2::create(16, nucleusConfigPath);
+    }
+  }
+  else if (species == "Ne") {
+    if (nucleusConfigPath==""){
+      return NucleusPtr{new WoodsSaxonNucleus{
+        // Dummy values, need to update
+        20, 2.2, 0.5, nucleon_dmin
+      }};
+    } else 
+    return ManualNucleus2::create(20, nucleusConfigPath);
+  }
+  else if (species == "Ca40")
+    return NucleusPtr{new WoodsSaxonNucleus{
+       40, _R_p, _a0, nucleon_dmin
+    }};
+  else if (species == "Ca48")
+    return NucleusPtr{new DoubleWoodsSaxonNucleus{
+       48, 20, _R_p, _R_n, _a0, _a_n, nucleon_dmin
+    }};
   else if (species == "Cu")
     return NucleusPtr{new WoodsSaxonNucleus{
        63, 4.20, 0.596, nucleon_dmin
     }};
   else if (species == "Cu2")
     return NucleusPtr{new DeformedWoodsSaxonNucleus{
-       63, 4.20, 0.596, 0.162, -0.006, nucleon_dmin
+       63, 4.20, 0.596, 0.162, -0.006, nucleon_dmin, _gamma
     }};
   else if (species == "Xe")
     return NucleusPtr{new WoodsSaxonNucleus{
@@ -46,7 +81,11 @@ NucleusPtr Nucleus::create(const std::string& species, double nucleon_dmin) {
     }};
   else if (species == "Xe2")
     return NucleusPtr{new DeformedWoodsSaxonNucleus{
-      129, 5.36, 0.590, 0.162, -0.003, nucleon_dmin
+      129, 5.36, 0.590, 0.162, -0.003, nucleon_dmin, _gamma
+    }};
+  else if (species == "Xe3")
+    return NucleusPtr{new DeformedWoodsSaxonNucleus{
+      129, 5.36, _a0, _beta2, _beta3, _beta4, nucleon_dmin, _gamma
     }};
   else if (species == "Au")
     return NucleusPtr{new WoodsSaxonNucleus{
@@ -54,23 +93,39 @@ NucleusPtr Nucleus::create(const std::string& species, double nucleon_dmin) {
     }};
   else if (species == "Au2")
     return NucleusPtr{new DeformedWoodsSaxonNucleus{
-      197, 6.38, 0.535, -0.131, -0.031, nucleon_dmin
+      197, 6.38, 0.535, -0.131, -0.031, nucleon_dmin, _gamma
+    }};
+  else if (species == "Au3")
+    return NucleusPtr{new DeformedWoodsSaxonNucleus{
+      197, 6.62, 0.52, 0.14, 0., 0.0, nucleon_dmin, 0.7854
     }};
   else if (species == "Pb")
     return NucleusPtr{new WoodsSaxonNucleus{
       208, 6.62, 0.546, nucleon_dmin
     }};
+  else if (species == "Pb2")
+    return NucleusPtr{new DeformedWoodsSaxonNucleus{
+      208, 6.62, _a0, 0.05, 0., 0., nucleon_dmin, 0.
+    }};
+  else if (species == "Pb3")
+    return NucleusPtr{new DeformedWoodsSaxonNucleus{
+      208, 6.62, _a0, _beta2, _beta3, _beta4, nucleon_dmin, _gamma
+    }};
   else if (species == "U")
     return NucleusPtr{new DeformedWoodsSaxonNucleus{
-      238, 6.81, 0.600, 0.280, 0.093, nucleon_dmin
+      238, 6.81, 0.600, 0.280, 0.093, nucleon_dmin, _gamma
     }};
   else if (species == "U2")
     return NucleusPtr{new DeformedWoodsSaxonNucleus{
-      238, 6.86, 0.420, 0.265, 0.000, nucleon_dmin
+      238, 6.86, 0.420, 0.265, 0.000, nucleon_dmin, _gamma
     }};
   else if (species == "U3")
     return NucleusPtr{new DeformedWoodsSaxonNucleus{
-      238, 6.67, 0.440, 0.280, 0.093, nucleon_dmin
+      238, 6.81, 0.55, _beta2, 0., 0.09, nucleon_dmin, _gamma
+    }};
+  else if (species == "U4")
+    return NucleusPtr{new DeformedWoodsSaxonNucleus{
+      238, 6.67, 0.440, 0.280, 0.093, nucleon_dmin, _gamma
     }};
   // Read nuclear configurations from HDF5.
   else if (hdf5::filename_is_hdf5(species)) {
@@ -245,17 +300,99 @@ void WoodsSaxonNucleus::sample_nucleons_impl() {
   // XXX: re-center nucleon positions?
 }
 
+// Extend the W-S dist out to R + 10a; for typical values of (R, a), the
+// probability of sampling a nucleon beyond this radius is O(10^-5).
+DoubleWoodsSaxonNucleus::DoubleWoodsSaxonNucleus(
+    std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double dmin)
+    : MinDistNucleus(A, dmin),
+      Z_(Z),
+      R_p_(R_p),
+      a_p_(a_p),
+      R_n_(R_n),
+      a_n_(a_n),
+      woods_saxon_dist_p_(1000, 0., R_p + 10.*a_p,
+        [R_p, a_p](double r) { return r*r/(1.+std::exp((r-R_p)/a_p)); }),
+      woods_saxon_dist_n_(1000, 0., R_n + 10.*a_n,
+        [R_n, a_n](double r) { return r*r/(1.+std::exp((r-R_n)/a_n)); })
+{}
+
+/// Return something a bit smaller than the true maximum radius.  The
+/// Woods-Saxon distribution falls off very rapidly (exponentially), and since
+/// this radius determines the impact parameter range, the true maximum radius
+/// would cause far too many events with zero participants.
+double DoubleWoodsSaxonNucleus::radius() const {
+  return R_n_ + 3.*a_n_;
+}
+
+/// Sample Woods-Saxon nucleon positions.
+void DoubleWoodsSaxonNucleus::sample_nucleons_impl() {
+  // When placing nucleons with a minimum distance criterion, resample spherical
+  // angles until the nucleon is not too close to a previously sampled nucleon,
+  // but do not resample radius -- this could modify the Woods-Saxon dist.
+
+  // Because of the r^2 Jacobian, there is less available space at smaller
+  // radii.  Therefore, pre-sample all radii first, sort them, and then place
+  // nucleons starting with the smallest radius and working outwards.  This
+  // dramatically reduces the chance that a nucleon cannot be placed.
+  std::vector<double> radii(size());
+  int ind = 0;
+  for (auto&& r : radii) {
+    if (ind<Z_) {
+      r = woods_saxon_dist_p_(random::engine);
+    } else {
+      r = woods_saxon_dist_n_(random::engine);
+    }
+    ind++;
+  }
+  std::sort(radii.begin(), radii.end());
+
+  // Place each nucleon at a pre-sampled radius.
+  auto r_iter = radii.cbegin();
+  for (iterator nucleon = begin(); nucleon != end(); ++nucleon) {
+    // Get radius and advance iterator.
+    auto& r = *r_iter++;
+
+    // Sample angles until the minimum distance criterion is satisfied.
+    auto ntries = 0;
+    do {
+      // Sample isotropic spherical angles.
+      auto cos_theta = random::cos_theta<double>();
+      auto phi = random::phi<double>();
+
+      // Convert to Cartesian coordinates.
+      auto r_sin_theta = r * std::sqrt(1. - cos_theta*cos_theta);
+      auto x = r_sin_theta * std::cos(phi);
+      auto y = r_sin_theta * std::sin(phi);
+      auto z = r * cos_theta;
+
+      set_nucleon_position(*nucleon, x, y, z);
+
+      // Retry sampling a reasonable number of times.  If a nucleon cannot be
+      // placed, give up and leave it at its last sampled position.  Some
+      // approximate numbers for Pb nuclei:
+      //
+      //   dmin = 0.5 fm, < 0.001% of nucleons cannot be placed
+      //          1.0 fm, ~0.005%
+      //          1.5 fm, ~0.1%
+      //          1.73 fm, ~1%
+    } while (++ntries < 1000 && is_too_close(nucleon));
+  }
+  // XXX: re-center nucleon positions?
+}
+
 // Set rmax like the non-deformed case (R + 10a), but for the maximum
 // "effective" radius.  The numerical coefficients for beta2 and beta4 are the
 // approximate values of Y20 and Y40 at theta = 0.
 DeformedWoodsSaxonNucleus::DeformedWoodsSaxonNucleus(
-    std::size_t A, double R, double a, double beta2, double beta4, double dmin)
+    std::size_t A, double R, double a, double beta2, double beta3, double beta4, double dmin, double gamma)
     : MinDistNucleus(A, dmin),
       R_(R),
       a_(a),
       beta2_(beta2),
+      beta3_(beta3),
       beta4_(beta4),
-      rmax_(R*(1. + .63*std::fabs(beta2) + .85*std::fabs(beta4)) + 10.*a)
+      gamma_(gamma),
+      rmax_(R*(1. + .63*std::fabs(beta2) + .75*std::fabs(beta3) + .85*std::fabs(beta4)) + 10.*a)
 {}
 
 /// Return something a bit smaller than the true maximum radius.  The
@@ -267,17 +404,19 @@ double DeformedWoodsSaxonNucleus::radius() const {
 }
 
 double DeformedWoodsSaxonNucleus::deformed_woods_saxon_dist(
-    double r, double cos_theta) const {
+    double r, double cos_theta, double phi) const {
   auto cos_theta_sq = cos_theta*cos_theta;
 
   // spherical harmonics
   using math::double_constants::one_div_root_pi;
   auto Y20 = std::sqrt(5)/4. * one_div_root_pi * (3.*cos_theta_sq - 1.);
+  auto Y22 = std::sqrt(15)/4 * one_div_root_pi * (1 - cos_theta_sq) * std::cos(2*phi);
+  auto Y30 = std::sqrt(7)/4. * one_div_root_pi * (5.*cos_theta_sq - 3.) * cos_theta;
   auto Y40 = 3./16. * one_div_root_pi *
              (35.*cos_theta_sq*cos_theta_sq - 30.*cos_theta_sq + 3.);
 
   // "effective" radius
-  auto Reff = R_ * (1. + beta2_*Y20 + beta4_*Y40);
+  auto Reff = R_ * (1. + beta2_* (std::cos(gamma_) * Y20 + std::sin(gamma_) * Y22) + beta3_ * Y30 + beta4_ * Y40);
 
   return 1. / (1. + std::exp((r - Reff) / a_));
 }
@@ -304,10 +443,12 @@ void DeformedWoodsSaxonNucleus::sample_nucleons_impl() {
   const auto cos_b = std::cos(angle_b);
   const auto sin_b = std::sin(angle_b);
 
+
+
   // Pre-sample and sort (r, cos_theta) points from the deformed W-S dist.
   // See comments in WoodsSaxonNucleus (above) for rationale.
   struct Sample {
-    double r, cos_theta;
+    double r, cos_theta, phi;
   };
 
   std::vector<Sample> samples(size());
@@ -318,9 +459,10 @@ void DeformedWoodsSaxonNucleus::sample_nucleons_impl() {
     do {
       sample.r = rmax_ * std::cbrt(random::canonical<double>());
       sample.cos_theta = random::cos_theta<double>();
+      sample.phi = random::phi<double>();
     } while (
       random::canonical<double>() >
-      deformed_woods_saxon_dist(sample.r, sample.cos_theta)
+      deformed_woods_saxon_dist(sample.r, sample.cos_theta, sample.phi)
     );
   }
 
@@ -526,5 +668,191 @@ void ManualNucleus::sample_nucleons_impl() {
 }
 
 #endif  // TRENTO_HDF5
+
+// Additional methods needed by OO collisions
+
+std::unique_ptr<ManualNucleus2> ManualNucleus2::create(
+        const size_t A, const std::string& nucleusConfigPath) {
+
+    // If the input is an HDF5 file, load configurations accordingly
+    if (hdf5::filename_is_hdf5(nucleusConfigPath)) {
+#ifdef TRENTO_HDF5
+        auto file = hdf5::try_open_file(nucleusConfigPath);
+
+        // Require exactly one dataset in the file
+        if (file.getNumObjs() != 1)
+            throw std::invalid_argument{
+                "file '" + nucleusConfigPath + "' must contain exactly one object"
+            };
+
+        auto name = file.getObjnameByIdx(0);
+#if H5_VERSION_GE(1, 8, 13)
+        if (file.childObjType(name) != H5O_TYPE_DATASET)
+#else
+        if (file.getObjTypeByIdx(0) != H5G_DATASET)
+#endif
+            throw std::invalid_argument{
+                "object '" + name + "' in file '" + nucleusConfigPath + "' is not a dataset"
+            };
+
+        auto dataset = std::unique_ptr<H5::DataSet>{
+            new H5::DataSet{file.openDataSet(name)}
+        };
+
+        // Validate dimensionality and extract shape [nconfigs, A_file, 3]
+        std::array<hsize_t, 3> shape;
+        auto ndim = dataset->getSpace().getSimpleExtentDims(shape.data());
+        if (ndim != 3)
+            throw std::invalid_argument{
+                "dataset '" + name + "' in file '" + nucleusConfigPath + "' has " +
+                std::to_string(ndim) + " dimensions (need 3)"
+            };
+        if (shape[2] != 3)
+            throw std::invalid_argument{
+                "dataset '" + name + "' in file '" + nucleusConfigPath + "' has " +
+                std::to_string(shape[2]) + " columns (need 3)"
+            };
+
+        const auto nconfigs = static_cast<size_t>(shape[0]);
+        const auto A_file = static_cast<size_t>(shape[1]);
+
+        // Optionally check consistency with provided A
+        if (A > 0 && A != A_file) {
+            std::cerr << "Warning: provided A=" << A
+                      << " differs from A in file=" << A_file
+                      << ". Using A from file.\n";
+        }
+
+        // Read entire dataset into memory
+        std::array<hsize_t, 3> count = {shape[0], shape[1], shape[2]};
+        std::array<hsize_t, 3> start = {0, 0, 0};
+        std::array<hsize_t, 3> mem_shape = {shape[0], shape[1], shape[2]};
+        auto positions = read_dataset<float, 3, 3>(*dataset, count, start, mem_shape);
+
+        std::vector<std::vector<std::vector<float>>> dataset_vec(
+            nconfigs, std::vector<std::vector<float>>(A_file, std::vector<float>(3)));
+
+        auto rmax_sq = 0.0;
+        for (uint i = 0; i < nconfigs; ++i) {
+            for (uint j = 0; j < A_file; ++j) {
+                dataset_vec[i][j][0] = positions[i][j][0];
+                dataset_vec[i][j][1] = positions[i][j][1];
+                dataset_vec[i][j][2] = positions[i][j][2];
+                const auto x = dataset_vec[i][j][0];
+                const auto y = dataset_vec[i][j][1];
+                const auto z = dataset_vec[i][j][2];
+                const auto r_sq = x*x + y*y + z*z;
+                if (r_sq > rmax_sq) rmax_sq = r_sq;
+            }
+        }
+
+        const auto rmax = std::sqrt(rmax_sq);
+
+        return std::unique_ptr<ManualNucleus2>{
+            new ManualNucleus2(dataset_vec, nconfigs, A_file, rmax)
+        };
+#else
+        throw std::invalid_argument{"HDF5 support not enabled at compile time"};
+#endif
+    }
+    std::ifstream input(nucleusConfigPath.c_str(), std::ios::binary);
+    if (!input.good()) {
+        std::cout << "Configuration file not found!" << std::endl;
+        std::cout << "Please check file: " << nucleusConfigPath << std::endl;
+        exit(1);
+    }
+
+    int Nentry = 3;
+
+    std::vector<std::vector<std::vector<float>>> dataset;
+    while (true) {
+        std::vector<std::vector<float>> conf_i;
+        for (uint i = 0; i < A; i++) {
+            std::vector<float> nucleon_i;
+            for (int j = 0; j < Nentry; j++) {
+                float temp;
+                input.read(reinterpret_cast<char *>(&temp), sizeof(float));
+                nucleon_i.push_back(temp);
+            }
+            conf_i.push_back(nucleon_i);
+        }
+        if (input.eof()) break;
+        dataset.push_back(conf_i);
+    }
+    input.close();
+    std::cout << dataset.size() << " configrations." << std::endl;
+
+    // Deduce number of configs and number of nucleons (A) from the shape.
+    size_t nconfigs = dataset.size();
+
+    // Estimate the max radius from at least 500 nucleon positions.
+    auto n = std::min(500/A + 1, nconfigs);
+    auto rmax_sq = 0.;
+    for (uint iconfig = 0; iconfig < n; iconfig++) {
+        for (uint j = 0; j < A; j++) {
+            auto& x = dataset[iconfig][j][0];
+            auto& y = dataset[iconfig][j][1];
+            auto& z = dataset[iconfig][j][2];
+            auto r_sq = x*x + y*y + z*z;
+            if (r_sq > rmax_sq)
+            rmax_sq = r_sq;
+        }
+    }
+    auto rmax = std::sqrt(rmax_sq);
+
+    return std::unique_ptr<ManualNucleus2>{
+        new ManualNucleus2(dataset, nconfigs, A, rmax)
+    };
+}
+
+ManualNucleus2::ManualNucleus2(
+        std::vector<std::vector<std::vector<float>>> &dataset,
+        const size_t nconfigs, const size_t A, const double rmax)
+    : Nucleus(A),
+      ion_configs_(dataset),
+      rmax_(rmax),
+      index_dist_(0, nconfigs - 1)
+{}
+
+ManualNucleus2::~ManualNucleus2() = default;
+
+double ManualNucleus2::radius() const {
+  return rmax_;
+}
+
+void ManualNucleus2::sample_nucleons_impl() {
+    // Sample Euler rotation angles.
+    // First is an azimuthal spin about the Z axis.
+    const auto angle_1 = random::phi<double>();
+    const auto c1 = std::cos(angle_1);
+    const auto s1 = std::sin(angle_1);
+    // Then a polar tilt about the original X axis, uniform in cos(theta).
+    const auto c2 = random::cos_theta<double>();
+    const auto s2 = std::sqrt(1. - c2*c2);
+    // Finally another azimuthal spin about the original Z axis.
+    const auto angle_3 = random::phi<double>();
+    const auto c3 = std::cos(angle_3);
+    const auto s3 = std::sin(angle_3);
+
+    // Choose and read a random config from the dataset.
+    uint config_idx = index_dist_(random::engine);
+
+    // Loop over positions and nucleons.
+    uint nucleon_i = 0;
+    for (iterator nucleon = begin(); nucleon != end(); ++nucleon) {
+        // Extract position vector and increment iterator.
+        auto& x = ion_configs_[config_idx][nucleon_i][0];
+        auto& y = ion_configs_[config_idx][nucleon_i][1];
+        auto& z = ion_configs_[config_idx][nucleon_i][2];
+
+        // Rotate.
+        auto x_rot = x*(c1*c3 - c2*s1*s3) - y*(c3*s1 + c1*c2*s3) + z*s2*s3;
+        auto y_rot = x*(c1*s3 + c2*c3*s1) - y*(s1*s3 - c1*c2*c3) - z*c3*s2;
+        auto z_rot = x*s1*s2              + y*c1*s2              + z*c2;
+
+        set_nucleon_position(*nucleon, x_rot, y_rot, z_rot);
+        nucleon_i++;
+    }
+}
 
 }  // namespace trento

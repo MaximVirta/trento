@@ -57,20 +57,22 @@ Event::Event(const VarMap& var_map)
   // configuration.  The possibilities are defined above.  See the header for
   // more information.
   auto p = var_map["reduced-thickness"].as<double>();
+  auto q = var_map["thickness-exponent"].as<double>();
 
   if (std::fabs(p) < TINY) {
-    compute_reduced_thickness_ = [this]() {
-      compute_reduced_thickness(geometric_mean);
+    compute_reduced_thickness_ = [this, q]() {
+      compute_reduced_thickness(
+          [q](double a, double b) { return pow(geometric_mean(a, b), q); });
     };
   } else if (p > 0.) {
-    compute_reduced_thickness_ = [this, p]() {
+    compute_reduced_thickness_ = [this, p, q]() {
       compute_reduced_thickness(
-        [p](double a, double b) { return positive_pmean(p, a, b); });
+        [p, q](double a, double b) { return pow(positive_pmean(p, a, b), q); });
     };
   } else {
-    compute_reduced_thickness_ = [this, p]() {
+    compute_reduced_thickness_ = [this, p, q]() {
       compute_reduced_thickness(
-        [p](double a, double b) { return negative_pmean(p, a, b); });
+        [p, q](double a, double b) { return pow(negative_pmean(p, a, b), q); });
     };
   }
 }

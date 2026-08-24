@@ -25,6 +25,9 @@ namespace trento {
 // Alias for a smart pointer to a Nucleus.
 using NucleusPtr = std::unique_ptr<Nucleus>;
 
+// Function to correct the Woods-Saxon parameter a
+double correct_a(double a, double w);
+
 /// \rst
 /// Interface class to all nucleus types.  Stores an ensemble of nucleons and
 /// randomly samples their positions.  Implements a standard iterator interface
@@ -58,7 +61,7 @@ class Nucleus {
   /// \return a smart pointer \c std::unique_ptr<Nucleus>
   ///
   /// \throw std::invalid_argument for unknown species
-  static NucleusPtr create(const std::string& species, double nucleon_dmin = 0);
+  static NucleusPtr create(const std::string& species, double nucleon_dmin = 0, double _a0 = 0.546, double _beta2 = 0, double _beta3 = 0, double _beta4 = 0, double _gamma = 0, const std::string& nucleusConfigPath = "", double _R_p=5., double _R_n=5., double _a_n=.5);
 
   /// Default virtual destructor for abstract base class.
   virtual ~Nucleus() = default;
@@ -229,6 +232,47 @@ class WoodsSaxonNucleus : public MinDistNucleus {
   mutable std::piecewise_linear_distribution<double> woods_saxon_dist_;
 };
 
+
+/// \rst
+/// Samples protons and neutrons separately from a spherically symmetric Woods-Saxon distributions
+///
+/// .. math::
+///
+///   f(r) \propto \frac{1}{1 + \exp(\frac{r-R}{a})}.
+///
+/// For non-deformed heavy nuclei such as lead.
+///
+/// \endrst
+class DoubleWoodsSaxonNucleus : public MinDistNucleus {
+ public:
+  /// ``Nucleus::create()`` sets these parameters for a given species.
+  /// \param A number of nucleons
+  /// \Param Z number of protons
+  /// \param R_p Woods-Saxon radius for protons
+  /// \param a_p Woods-Saxon surface thickness for protons
+  /// \param R_n Woods-Saxon radius for neutrons
+  /// \param a_n Woods-Saxon surface thickness for neutrons
+  /// \param dmin minimum nucleon-nucleon distance (optional, default zero)
+  DoubleWoodsSaxonNucleus(std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double dmin = 0);
+
+  /// The radius of a Woods-Saxon Nucleus is computed from the parameters (R, a).
+  virtual double radius() const override;
+
+ private:
+  /// Sample Woods-Saxon nucleon positions.
+  virtual void sample_nucleons_impl() override;
+
+  /// Woods-Saxon parameters.
+  const int Z_;
+  const double R_p_, a_p_, R_n_, a_n_;
+
+  /// Woods-Saxon distribution object.  Since the dist does not have an analytic
+  /// inverse CDF, approximate it as a piecewise linear dist.  For a large
+  /// number of steps this is very accurate.
+  mutable std::piecewise_linear_distribution<double> woods_saxon_dist_p_;
+  mutable std::piecewise_linear_distribution<double> woods_saxon_dist_n_;
+};
+
 /// \rst
 /// Samples nucleons from a deformed spheroidal Woods-Saxon distribution
 ///
@@ -250,7 +294,7 @@ class DeformedWoodsSaxonNucleus : public MinDistNucleus {
   /// \param beta4 Woods-Saxon deformation parameter
   /// \param dmin minimum nucleon-nucleon distance (optional, default zero)
   DeformedWoodsSaxonNucleus(std::size_t A, double R, double a,
-                            double beta2, double beta4, double dmin = 0);
+                            double beta2, double beta3, double beta4, double dmin = 0, double gamma = 0);
 
   /// The radius of a deformed Woods-Saxon Nucleus is computed from the
   /// parameters (R, a, beta2, beta4).
@@ -261,10 +305,10 @@ class DeformedWoodsSaxonNucleus : public MinDistNucleus {
   virtual void sample_nucleons_impl() override;
 
   /// Evaluate the deformed Woods-Saxon distribution.
-  double deformed_woods_saxon_dist(double r, double cos_theta) const;
+  double deformed_woods_saxon_dist(double r, double cos_theta, double phi) const;
 
   /// Woods-Saxon parameters.
-  const double R_, a_, beta2_, beta4_;
+  const double R_, a_, beta2_, beta3_, beta4_, gamma_;
 
   /// Maximum radius.
   const double rmax_;
@@ -317,6 +361,51 @@ class ManualNucleus : public Nucleus {
 };
 
 #endif  // TRENTO_HDF5
+
+/// Reads manual nuclear configurations from an HDF5 file.
+class ManualNucleus2 : public Nucleus {
+ public:
+  /// Create a ManualNucleus2 that reads from the given file.
+  /// Throw std::invalid_argument if there are any problems.
+  ///
+  /// Since this is a derived class, the base Nucleus class is initialized
+  /// before any the data members.  This creates a bit of a catch-22, since the
+  /// number of nucleons must be known to initialize the base class, but that
+  /// must be deduced from the file.  As a workaround, this factory function
+  /// opens the file, determines the number of nucleons, and then calls the
+  /// constructor.
+  static std::unique_ptr<ManualNucleus2> create(size_t A, const std::string& nucleusConfigPath);
+
+  /// Must define destructor because of member pointer to incomplete type.
+  /// See explanation for Collider destructor.
+  virtual ~ManualNucleus2() override;
+
+  /// The radius is determined by reading many positions from the file and
+  /// saving the maximum.
+  virtual double radius() const override;
+
+ private:
+  /// Private constructor -- use create().
+  /// \param dataset smart pointer to HDF5 dataset
+  /// \param nconfigs number of nucleus configs in the dataset
+  /// \param A number of nucleons
+  /// \param rmax max radius
+  ManualNucleus2(std::vector<std::vector<std::vector<float>>> &dataset,
+                std::size_t nconfigs, std::size_t A, double rmax);
+
+  /// Read a configuration from the file, rotate it, and set nucleon positions.
+  virtual void sample_nucleons_impl() override;
+
+  /// Internal storage of nuclear configurations.
+  std::vector<std::vector<std::vector<float>>> ion_configs_;
+
+  /// Internal storage of the maximum radius.
+  const double rmax_;
+
+  /// Distribution for choosing random configs.
+  std::uniform_int_distribution<std::size_t> index_dist_;
+};
+
 
 }  // namespace trento
 

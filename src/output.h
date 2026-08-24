@@ -35,7 +35,7 @@ class Output {
 
  private:
   /// Internal storage of output functions.
-  std::vector<std::function<void(int, double, int, const Event&)>> writers_;
+  std::vector<std::function<void(int, double, int, int, const Event&)>> writers_;
 };
 
 template <typename... Args>

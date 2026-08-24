@@ -66,7 +66,8 @@ bool almost_equal(double a, double b) {
 double calc_sampling_width(const VarMap& var_map) {
   auto nucleon_width = var_map["nucleon-width"].as<double>();
   auto constituent_width = var_map["constit-width"].as<double>();
-  auto constituent_number = var_map["constit-number"].as<int>();
+  auto constitNr = var_map["constit-number"].as<double>();
+  auto constituent_number = static_cast<int>(constitNr);
 
   auto one_constituent = (constituent_number == 1);
   auto same_size = (nucleon_width - constituent_width < 1e-6);
@@ -157,6 +158,7 @@ double numeric_partonic_cross_section(const VarMap& var_map) {
     auto result = math::tools::toms748_solve(
       [&sigma_nn, &mc_cross_section, &c](double cross_section_param) {
         auto x = std::exp(cross_section_param) * c;
+        printf("%.10f\n", x);
         return mc_cross_section(x) - sigma_nn;
       },
       a, b, tol, max_iter);
@@ -177,7 +179,9 @@ double partonic_cross_section(const VarMap& var_map) {
   // Read parameters from the configuration.
   auto nucleon_width = var_map["nucleon-width"].as<double>();
   auto constituent_width = var_map["constit-width"].as<double>();
-  auto constituent_number = var_map["constit-number"].as<int>();
+  auto constitNr = var_map["constit-number"].as<double>();
+  auto constituent_number = static_cast<int>(constitNr);
+
   auto sigma_nn = var_map["cross-section"].as<double>();
 
   // Cross section parameters
@@ -249,7 +253,7 @@ NucleonCommon::NucleonCommon(const VarMap& var_map)
     : fast_exp_(-.5*sqr(max_radius_widths), 0., 1000),
       nucleon_width_(var_map["nucleon-width"].as<double>()),
       constituent_width_(var_map["constit-width"].as<double>()),
-      constituent_number_(std::size_t(var_map["constit-number"].as<int>())),
+      constituent_number_(std::size_t(var_map["constit-number"].as<double>())),
       sampling_width_(calc_sampling_width(var_map)),
       max_impact_sq_(sqr(max_impact_widths*nucleon_width_)),
       constituent_width_sq_(sqr(constituent_width_)),
@@ -264,7 +268,7 @@ NucleonCommon::NucleonCommon(const VarMap& var_map)
 MonteCarloCrossSection::MonteCarloCrossSection(const VarMap& var_map)
   : nucleon_width_(var_map["nucleon-width"].as<double>()),
     constituent_width_(var_map["constit-width"].as<double>()),
-    constituent_number_(std::size_t(var_map["constit-number"].as<int>())),
+    constituent_number_(std::size_t(var_map["constit-number"].as<double>())),
     sampling_width_(calc_sampling_width(var_map)),
     max_impact_(max_impact_widths*nucleon_width_),
     constituent_width_sq_(sqr(constituent_width_)),

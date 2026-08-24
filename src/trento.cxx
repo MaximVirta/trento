@@ -102,13 +102,18 @@ int main(int argc, char* argv[]) {
     ("no-header", po::bool_switch(),
      "do not write headers to text files")
     ("ncoll", po::bool_switch(),
-     "calculate binary collisions");
+     "calculate binary collisions")
+    ("toColl", po::bool_switch(),
+     "calculate hadronic cross-section");
 
   OptDesc phys_opts{"physical options"};
   phys_opts.add_options()
     ("reduced-thickness,p",
      po::value<double>()->value_name("FLOAT")->default_value(0., "0"),
      "reduced thickness parameter")
+    ("thickness-exponent,q",
+     po::value<double>()->value_name("FLOAT")->default_value(1., "1"),
+     "thickness exponent parameter")
     ("fluctuation,k",
      po::value<double>()->value_name("FLOAT")->default_value(1., "1"),
      "gamma fluctuation shape parameter")
@@ -119,7 +124,7 @@ int main(int argc, char* argv[]) {
      po::value<double>()->value_name("FLOAT")->default_value(.5, "same"),
      "Gaussian constituent width [fm]")
     ("constit-number,m",
-     po::value<int>()->value_name("INT")->default_value(1, "1"),
+     po::value<double>()->value_name("FLOAT")->default_value(1.0, "1.0"), 
      "Number of constituents in the nucleon")
     ("nucleon-min-dist,d",
      po::value<double>()->value_name("FLOAT")->default_value(0., "0"),
@@ -136,6 +141,42 @@ int main(int argc, char* argv[]) {
     ("b-max",
      po::value<double>()->value_name("FLOAT")->default_value(-1., "auto"),
      "maximum impact parameter [fm]")
+    ("a0",
+     po::value<double>()->value_name("FLOAT")->default_value(0.546, "auto"),
+     "Wood-Saxon diffusion")
+    ("Rp",
+     po::value<double>()->value_name("FLOAT")->default_value(5., "auto"),
+     "Wood-Saxon radius for proton")
+    ("Rn",
+     po::value<double>()->value_name("FLOAT")->default_value(5., "auto"),
+     "Wood-Saxon radius for neutron")
+    ("an",
+     po::value<double>()->value_name("FLOAT")->default_value(0.5, "auto"),
+     "Wood-Saxon neutron diffusion")
+    ("lambda",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "mean of Poisson distribution of n_c (set to zero to disable this)")
+    ("y-std",
+     po::value<double>()->value_name("FLOAT")->default_value(-0.5, "auto"),
+     "standard deviation of gamma")
+    ("y-mean",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "mean value of gamma")
+    ("beta2-mean",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "beta_2 mean value")
+    ("beta2-std",
+     po::value<double>()->value_name("FLOAT")->default_value(-0.5, "auto"),
+     "beta_2 variance")
+    ("beta3",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "beta_3 value")
+    ("beta4",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "beta_4 value")
+     ("nucleonConfigPath",
+      po::value<std::string>()->value_name("STRING")->default_value("", "auto"),
+      "path to nucleon configuration file")
     ("random-seed",
      po::value<int64_t>()->value_name("INT")->default_value(-1, "auto"),
      "random seed");
@@ -183,7 +224,7 @@ int main(int argc, char* argv[]) {
       std::cout
         << usage_str
         << "\n"
-           "projectile = { p | d | Cu | Cu2 | Xe | Au | Au2 | Pb | U | U2 | U3 }\n"
+           "projectile = { p | d | Cu | Cu2 | Xe | Xe2 | Xe3 | Au | Au2 | Pb | Pb2 | U | U2 | U3 }\n"
         << usage_opts
         << "\n"
            "see the online documentation for complete usage information\n";
@@ -229,19 +270,40 @@ int main(int argc, char* argv[]) {
 
     double nucleon_width = var_map["nucleon-width"].as<double>();
     double constituent_width = var_map["constit-width"].as<double>();
-    int constituent_number = var_map["constit-number"].as<int>();
+    auto constitNr = var_map["constit-number"].as<double>();
+    auto constituent_number = static_cast<int>(constitNr);
 
+    double lambda = var_map["lambda"].as<double>();
+    if (lambda>1e-6) {
+      random::setDistribution(lambda);
+      var_map.at("constit-number").value() = static_cast<double>(random::poisson());
+      if (var_map.at("constit-number").as<double>() < 1e-6 ) var_map.at("constit-number").value() = 1.0;
+      constituent_number = var_map["constit-number"].as<double>();
+      printf("Using Poisson distribution. lambda = %.3f, nr constituents = %.2f \n", lambda, var_map["constit-number"].as<double>());
+    } else {
+      // Randomly increase constituent number by 1 with probability nc - floor(nc) 
+      if (random::canonical<double>() < (var_map["constit-number"].as<double>() - static_cast<double>(constituent_number))) {
+        constituent_number += 1;
+      }
+      var_map.at("constit-number").value() = static_cast<double>(constituent_number);
+      printf("Using regular probability. nr constituents = %.2f \n", var_map["constit-number"].as<double>());
+    }
     // Constituent and nucleon widths must be non-negative.
     if ((nucleon_width < 0) || (constituent_width < 0))
       throw po::error{"nucleon and constituent widths must be non-negative"};
 
     // Constituent width cannot be larger than nucleon width.
-    if (constituent_width > nucleon_width)
-      throw po::error{"constituent width cannot be larger than nucleon width"};
+    if (constituent_width > nucleon_width) {
+      constituent_width = nucleon_width;
+      constituent_number = 1.0;
+      printf("Constituent width (v) larger than nucleon width (w). Setting constituent width to equal the nucleon width and number of constituents to 1. \n");
+    }
 
     // Cannot fit nucleon width using single constituent if different sizes.
-    if ((constituent_width < nucleon_width) && constituent_number == 1)
-      throw po::error{"cannot fit nucleon width using single constituent if different sizes"};
+    if ((constituent_width < nucleon_width) && constituent_number == -71) {
+      printf("Number of constituents is 1. Setting constituent width to equal the nucleon width. \n");
+      var_map.at("constit-width").value() = var_map["nucleon-width"].as<double>();
+    }
 
     // Save all the final values into var_map.
     // Exceptions may occur here.

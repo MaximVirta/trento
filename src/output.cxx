@@ -15,6 +15,7 @@
 
 #include "event.h"
 #include "hdf5_utils.h"
+#include <array>
 
 namespace trento {
 

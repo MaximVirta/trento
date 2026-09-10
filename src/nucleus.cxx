@@ -60,12 +60,12 @@ NucleusPtr Nucleus::create(const std::string& species, double nucleon_dmin, doub
     return ManualNucleus2::create(20, nucleusConfigPath);
   }
   else if (species == "Ca40")
-    return NucleusPtr{new WoodsSaxonNucleus{
-       40, _R_p, _a0, nucleon_dmin
-    }};
+  return NucleusPtr{new DoubleWoodsSaxonNucleus{
+     40, 20, _R_p, _R_n, _a0, _a_n, -0.161, nucleon_dmin
+  }};
   else if (species == "Ca48")
     return NucleusPtr{new DoubleWoodsSaxonNucleus{
-       48, 20, _R_p, _R_n, _a0, _a_n, nucleon_dmin
+       48, 20, _R_p, _R_n, _a0, _a_n, -0.030, nucleon_dmin
     }};
   else if (species == "Cu")
     return NucleusPtr{new WoodsSaxonNucleus{
@@ -303,17 +303,18 @@ void WoodsSaxonNucleus::sample_nucleons_impl() {
 // Extend the W-S dist out to R + 10a; for typical values of (R, a), the
 // probability of sampling a nucleon beyond this radius is O(10^-5).
 DoubleWoodsSaxonNucleus::DoubleWoodsSaxonNucleus(
-    std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double dmin)
+    std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double w, double dmin)
     : MinDistNucleus(A, dmin),
       Z_(Z),
       R_p_(R_p),
       a_p_(a_p),
+      w_(w),
       R_n_(R_n),
       a_n_(a_n),
       woods_saxon_dist_p_(1000, 0., R_p + 10.*a_p,
-        [R_p, a_p](double r) { return r*r/(1.+std::exp((r-R_p)/a_p)); }),
+        [R_p, a_p](double r) { return (r*r + w*r*r*r*r/R_p/R_p)/(1.+std::exp((r-R_p)/a_p)); }),
       woods_saxon_dist_n_(1000, 0., R_n + 10.*a_n,
-        [R_n, a_n](double r) { return r*r/(1.+std::exp((r-R_n)/a_n)); })
+        [R_n, a_n](double r) { return (r*r + w*r*r*r*r/R_n/R_n)/(1.+std::exp((r-R_n)/a_n)); })
 {}
 
 /// Return something a bit smaller than the true maximum radius.  The

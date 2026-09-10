@@ -253,7 +253,7 @@ class DoubleWoodsSaxonNucleus : public MinDistNucleus {
   /// \param R_n Woods-Saxon radius for neutrons
   /// \param a_n Woods-Saxon surface thickness for neutrons
   /// \param dmin minimum nucleon-nucleon distance (optional, default zero)
-  DoubleWoodsSaxonNucleus(std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double dmin = 0);
+  DoubleWoodsSaxonNucleus(std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double w, double dmin = 0);
 
   /// The radius of a Woods-Saxon Nucleus is computed from the parameters (R, a).
   virtual double radius() const override;
@@ -264,8 +264,7 @@ class DoubleWoodsSaxonNucleus : public MinDistNucleus {
 
   /// Woods-Saxon parameters.
   const int Z_;
-  const double R_p_, a_p_, R_n_, a_n_;
-
+  const double R_p_, a_p_, R_n_, a_n_, w_;
   /// Woods-Saxon distribution object.  Since the dist does not have an analytic
   /// inverse CDF, approximate it as a piecewise linear dist.  For a large
   /// number of steps this is very accurate.

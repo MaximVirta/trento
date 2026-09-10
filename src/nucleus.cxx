@@ -312,9 +312,9 @@ DoubleWoodsSaxonNucleus::DoubleWoodsSaxonNucleus(
       R_n_(R_n),
       a_n_(a_n),
       woods_saxon_dist_p_(1000, 0., R_p + 10.*a_p,
-        [R_p, a_p](double r) { return (r*r + w*r*r*r*r/R_p/R_p)/(1.+std::exp((r-R_p)/a_p)); }),
+        [R_p, a_p, w](double r) { return (r*r + w*r*r*r*r/R_p/R_p)/(1.+std::exp((r-R_p)/a_p)); }),
       woods_saxon_dist_n_(1000, 0., R_n + 10.*a_n,
-        [R_n, a_n](double r) { return (r*r + w*r*r*r*r/R_n/R_n)/(1.+std::exp((r-R_n)/a_n)); })
+        [R_n, a_n, w](double r) { return (r*r + w*r*r*r*r/R_n/R_n)/(1.+std::exp((r-R_n)/a_n)); })
 {}
 
 /// Return something a bit smaller than the true maximum radius.  The

@@ -264,7 +264,7 @@ class DoubleWoodsSaxonNucleus : public MinDistNucleus {
 
   /// Woods-Saxon parameters.
   const int Z_;
-  const double R_p_, a_p_, R_n_, a_n_, w_;
+  const double R_max_, a_max_;
   /// Woods-Saxon distribution object.  Since the dist does not have an analytic
   /// inverse CDF, approximate it as a piecewise linear dist.  For a large
   /// number of steps this is very accurate.

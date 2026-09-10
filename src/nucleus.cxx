@@ -306,11 +306,8 @@ DoubleWoodsSaxonNucleus::DoubleWoodsSaxonNucleus(
     std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double w, double dmin)
     : MinDistNucleus(A, dmin),
       Z_(Z),
-      R_p_(R_p),
-      a_p_(a_p),
-      w_(w),
-      R_n_(R_n),
-      a_n_(a_n),
+      R_max_(std::fmax(R_p, R_n)),
+      a_max_(std::fmax(a_p, a_n)),
       woods_saxon_dist_p_(1000, 0., R_p + 10.*a_p,
         [R_p, a_p, w](double r) { return (r*r + w*r*r*r*r/R_p/R_p)/(1.+std::exp((r-R_p)/a_p)); }),
       woods_saxon_dist_n_(1000, 0., R_n + 10.*a_n,
@@ -322,7 +319,7 @@ DoubleWoodsSaxonNucleus::DoubleWoodsSaxonNucleus(
 /// this radius determines the impact parameter range, the true maximum radius
 /// would cause far too many events with zero participants.
 double DoubleWoodsSaxonNucleus::radius() const {
-  return R_n_ + 3.*a_n_;
+  return R_max_ + 3.*a_max_;
 }
 
 /// Sample Woods-Saxon nucleon positions.

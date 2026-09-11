@@ -306,6 +306,9 @@ class DeformedWoodsSaxonNucleus : public MinDistNucleus {
   /// Evaluate the deformed Woods-Saxon distribution.
   double deformed_woods_saxon_dist(double r, double cos_theta, double phi) const;
 
+  /// Maximum of the deformed Woods-Saxon distribution over phi for fixed (r, cos_theta).
+  double max_deformed_woods_saxon_dist(double r, double cos_theta) const;
+
   /// Woods-Saxon parameters.
   const double R_, a_, beta2_, beta3_, beta4_, gamma_;
 

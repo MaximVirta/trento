@@ -5,6 +5,7 @@
 #include "nucleus.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -25,7 +26,59 @@
 #include "hdf5_utils.h"
 #include "random.h"
 
+
 namespace trento {
+
+namespace {
+
+  struct Rotation {
+      double m[3][3];
+  
+      std::array<double, 3> operator()(
+          double x, double y, double z) const
+      {
+          return {{
+              m[0][0]*x + m[0][1]*y + m[0][2]*z,
+              m[1][0]*x + m[1][1]*y + m[1][2]*z,
+              m[2][0]*x + m[2][1]*y + m[2][2]*z
+          }};
+      }
+  };
+  
+  Rotation random_rotation()
+  {
+      // Generate a point uniformly on S^3.
+      const auto q0 = random::normal<double>();
+      const auto q1 = random::normal<double>();
+      const auto q2 = random::normal<double>();
+      const auto q3 = random::normal<double>();
+  
+      const auto norm =
+          std::sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
+  
+      const auto w = q0 / norm;
+      const auto x = q1 / norm;
+      const auto y = q2 / norm;
+      const auto z = q3 / norm;
+  
+      Rotation R;
+  
+      R.m[0][0] = 1. - 2.*(y*y + z*z);
+      R.m[0][1] = 2.*(x*y - w*z);
+      R.m[0][2] = 2.*(x*z + w*y);
+  
+      R.m[1][0] = 2.*(x*y + w*z);
+      R.m[1][1] = 1. - 2.*(x*x + z*z);
+      R.m[1][2] = 2.*(y*z - w*x);
+  
+      R.m[2][0] = 2.*(x*z - w*y);
+      R.m[2][1] = 2.*(y*z + w*x);
+      R.m[2][2] = 1. - 2.*(x*x + y*y);
+  
+      return R;
+  }
+  
+} // unnamed namespace
 
 double correct_a(double a, double w) {
    constexpr auto c = 0.61;  // correction coefficient
@@ -419,28 +472,23 @@ double DeformedWoodsSaxonNucleus::deformed_woods_saxon_dist(
   return 1. / (1. + std::exp((r - Reff) / a_));
 }
 
+double DeformedWoodsSaxonNucleus::max_deformed_woods_saxon_dist(double r, double cos_theta) const {
+  // Y22 ~ cos(2 phi) is the only phi dependence, so the density extrema are at
+  // phi = 0 and phi = pi/2.
+  using math::double_constants::half_pi;
+  return std::fmax(
+      deformed_woods_saxon_dist(r, cos_theta, 0.),
+      deformed_woods_saxon_dist(r, cos_theta, half_pi));
+}
+
 /// Sample deformed Woods-Saxon nucleon positions.
 void DeformedWoodsSaxonNucleus::sample_nucleons_impl() {
   // The deformed W-S distribution is defined so the symmetry axis is aligned
   // with the Z axis, so e.g. the long axis of uranium coincides with Z.
   //
-  // After sampling positions, they must be randomly rotated.  In general this
-  // requires three Euler rotations, but in this case we only need two
-  // because there is no use in rotating about the nuclear symmetry axis.
-  //
-  // The two rotations are:
-  //  - a polar "tilt", i.e. rotation about the X axis
-  //  - an azimuthal "spin", i.e. rotation about the original Z axis
-
-  // "tilt" angle
-  const auto cos_a = random::cos_theta<double>();
-  const auto sin_a = std::sqrt(1. - cos_a*cos_a);
-
-  // "spin" angle
-  const auto angle_b = random::phi<double>();
-  const auto cos_b = std::cos(angle_b);
-  const auto sin_b = std::sin(angle_b);
-
+  // After sampling positions, they must be randomly rotated.  A full SO(3)
+  // rotation is required once axial symmetry is broken (nonzero gamma).
+  const auto rotation = random_rotation();
 
 
   // Pre-sample and sort (r, cos_theta) points from the deformed W-S dist.
@@ -483,39 +531,33 @@ void DeformedWoodsSaxonNucleus::sample_nucleons_impl() {
     auto r_sin_theta = r * std::sqrt(1. - cos_theta*cos_theta);
     auto z = r * cos_theta;
 
-    // Sample azimuthal angle until the minimum distance criterion is satisfied.
-    auto ntries = 0;
-    do {
-      // Choose azimuthal angle.
+    // Sample azimuthal angle from p(phi | r, cos_theta) until the minimum
+    // distance criterion is satisfied.  Retry a reasonable number of times;
+    // if a nucleon cannot be placed, leave it at its last sampled position.
+    // Approximate failure rates for U nuclei:
+    //
+    //   dmin = 0.5 fm, < 0.001% of nucleons cannot be placed
+    //          1.0 fm, ~0.03%
+    //          1.3 fm, ~0.3%
+    //          1.5 fm, ~1.2%
+    for (auto ntries = 0; ntries < 10 000; ++ntries) {
       auto phi = random::phi<double>();
 
-      // Convert to Cartesian coordinates.
+      const auto rho = deformed_woods_saxon_dist(r, cos_theta, phi);
+      const auto rho_max = max_deformed_woods_saxon_dist(r, cos_theta);
+
+      if (random::canonical<double>() > rho / rho_max)
+        continue;
+
       auto x = r_sin_theta * std::cos(phi);
       auto y = r_sin_theta * std::sin(phi);
 
-      // Rotate.
-      // The rotation formula was derived by composing the "tilt" and "spin"
-      // rotations described above.
-      auto x_rot = x*cos_b - y*cos_a*sin_b + z*sin_a*sin_b;
-      auto y_rot = x*sin_b + y*cos_a*cos_b - z*sin_a*cos_b;
-      auto z_rot =           y*sin_a       + z*cos_a;
+      const auto rotated = rotation(x, y, z);
+      set_nucleon_position(*nucleon, rotated[0], rotated[1], rotated[2]);
 
-      set_nucleon_position(*nucleon, x_rot, y_rot, z_rot);
-
-      // In addition to resampling phi, flip the z-coordinate each time.  This
-      // works because the deformed WS dist is symmetric in z.  Effectively
-      // doubles the available space for the nucleon.
-      z *= -1;
-
-      // Retry a reasonable number of times.  Unfortunately the failure rate is
-      // worse than non-deformed sampling because there is less freedom to place
-      // each nucleon.  Some approximate numbers for U nuclei:
-      //
-      //   dmin = 0.5 fm, < 0.001% of nucleons cannot be placed
-      //          1.0 fm, ~0.03%
-      //          1.3 fm, ~0.3%
-      //          1.5 fm, ~1.2%
-    } while (++ntries < 1000 && is_too_close(nucleon));
+      if (!is_too_close(nucleon))
+        break;
+    }
   }
 }
 

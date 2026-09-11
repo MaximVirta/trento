@@ -86,6 +86,13 @@ class CyclicNormal {
   typename std::vector<RealType>::const_iterator iter_;
 };
 
+/// Sample a standard normal random variable.
+template <typename RealType = double>
+inline RealType normal() {
+    std::normal_distribution<RealType> dist{0., 1.};
+    return dist(engine);
+}
+
 template <typename RealType>
 CyclicNormal<RealType>::CyclicNormal(
       RealType mean, RealType stddev,

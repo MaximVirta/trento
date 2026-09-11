@@ -540,7 +540,7 @@ void DeformedWoodsSaxonNucleus::sample_nucleons_impl() {
     //          1.0 fm, ~0.03%
     //          1.3 fm, ~0.3%
     //          1.5 fm, ~1.2%
-    for (auto ntries = 0; ntries < 10 000; ++ntries) {
+    for (auto ntries = 0; ntries < 10000; ++ntries) {
       auto phi = random::phi<double>();
 
       const auto rho = deformed_woods_saxon_dist(r, cos_theta, phi);

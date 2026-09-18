@@ -2,6 +2,7 @@
 // Copyright 2015 Jonah E. Bernhard, J. Scott Moreland
 // MIT License
 
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -52,6 +53,52 @@ void print_bibtex() {
 // void print_default_config() {
 //   std::cout << "to do\n";
 // }
+
+// Paste from papers/Word often uses U+2212 minus or dashes instead of ASCII '-'.
+std::string normalize_dashes(std::string s) {
+  const char* unicode_minuses[] = {
+    "\xE2\x88\x92",  // U+2212 MINUS SIGN
+    "\xE2\x80\x93",  // U+2013 EN DASH
+    "\xE2\x80\x94",  // U+2014 EM DASH
+  };
+  for (const char* u : unicode_minuses) {
+    for (auto pos = s.find(u); pos != std::string::npos; pos = s.find(u, pos))
+      s.replace(pos, 3, "-");
+  }
+  return s;
+}
+
+bool looks_like_number(const std::string& s) {
+  if (s.empty())
+    return false;
+  char* end = nullptr;
+  std::strtod(s.c_str(), &end);
+  return end != s.c_str() && *end == '\0';
+}
+
+// Boost will not take a following token that starts with '-' as an option
+// value, so "--wp -0.14" fails unless rewritten as "--wp=-0.14".
+std::vector<std::string> prepare_argv(int argc, char** argv) {
+  std::vector<std::string> args;
+  for (int i = 1; i < argc; ++i)
+    args.push_back(normalize_dashes(argv[i]));
+
+  std::vector<std::string> out;
+  out.reserve(args.size());
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    const auto& a = args[i];
+    const bool is_option =
+        a.size() >= 2 && a[0] == '-' && a.find('=') == std::string::npos;
+    if (is_option && i + 1 < args.size() && looks_like_number(args[i + 1]) &&
+        args[i + 1][0] == '-') {
+      out.push_back(a + "=" + args[i + 1]);
+      ++i;
+    } else {
+      out.push_back(a);
+    }
+  }
+  return out;
+}
 
 }  // unnamed namespace
 
@@ -221,7 +268,8 @@ int main(int argc, char* argv[]) {
     VarMap var_map{};
 
     // Parse command line options.
-    po::store(po::command_line_parser(argc, argv)
+    const auto args = prepare_argv(argc, argv);
+    po::store(po::command_line_parser(args)
         .options(all_opts).positional(positional_opts).run(), var_map);
 
     // Handle options that imply immediate exit.

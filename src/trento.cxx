@@ -174,6 +174,12 @@ int main(int argc, char* argv[]) {
     ("beta4",
      po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
      "beta_4 value")
+    ("wp",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "Wood-Saxon width for proton")
+    ("wn",
+     po::value<double>()->value_name("FLOAT")->default_value(0., "auto"),
+     "Wood-Saxon width for neutron")
      ("nucleonConfigPath",
       po::value<std::string>()->value_name("STRING")->default_value("", "auto"),
       "path to nucleon configuration file")

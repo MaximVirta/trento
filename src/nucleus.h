@@ -61,7 +61,7 @@ class Nucleus {
   /// \return a smart pointer \c std::unique_ptr<Nucleus>
   ///
   /// \throw std::invalid_argument for unknown species
-  static NucleusPtr create(const std::string& species, double nucleon_dmin = 0, double _a0 = 0.546, double _beta2 = 0, double _beta3 = 0, double _beta4 = 0, double _gamma = 0, const std::string& nucleusConfigPath = "", double _R_p=5., double _R_n=5., double _a_n=.5);
+  static NucleusPtr create(const std::string& species, double nucleon_dmin = 0, double _a0 = 0.546, double _beta2 = 0, double _beta3 = 0, double _beta4 = 0, double _gamma = 0, const std::string& nucleusConfigPath = "", double _R_p=5., double _R_n=5., double _a_n=.5, double _w_p=0., double _w_n=0.);
 
   /// Default virtual destructor for abstract base class.
   virtual ~Nucleus() = default;
@@ -253,7 +253,7 @@ class DoubleWoodsSaxonNucleus : public MinDistNucleus {
   /// \param R_n Woods-Saxon radius for neutrons
   /// \param a_n Woods-Saxon surface thickness for neutrons
   /// \param dmin minimum nucleon-nucleon distance (optional, default zero)
-  DoubleWoodsSaxonNucleus(std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double w, double dmin = 0);
+  DoubleWoodsSaxonNucleus(std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double w_p, double w_n, double dmin = 0);
 
   /// The radius of a Woods-Saxon Nucleus is computed from the parameters (R, a).
   virtual double radius() const override;

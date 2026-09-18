@@ -86,7 +86,7 @@ double correct_a(double a, double w) {
    return std::sqrt(std::fmax(a*a - c*c*w*w, a_min*a_min));
 }
 
-NucleusPtr Nucleus::create(const std::string& species, double nucleon_dmin, double _a0, double _beta2, double _beta3, double _beta4, double _gamma, const std::string& nucleusConfigPath, double _R_p, double _R_n, double _a_n) {
+NucleusPtr Nucleus::create(const std::string& species, double nucleon_dmin, double _a0, double _beta2, double _beta3, double _beta4, double _gamma, const std::string& nucleusConfigPath, double _R_p, double _R_n, double _a_n, double _w_p, double _w_n) {
   // W-S params ref. in header
   // XXX: remember to add new species to the help output in main() and the readme
   if (species == "p")
@@ -112,14 +112,24 @@ NucleusPtr Nucleus::create(const std::string& species, double nucleon_dmin, doub
     } else 
     return ManualNucleus2::create(20, nucleusConfigPath);
   }
-  else if (species == "Ca40")
-  return NucleusPtr{new DoubleWoodsSaxonNucleus{
-     40, 20, _R_p, _R_n, _a0, _a_n, -0.161, nucleon_dmin
-  }};
-  else if (species == "Ca48")
-    return NucleusPtr{new DoubleWoodsSaxonNucleus{
-       48, 20, _R_p, _R_n, _a0, _a_n, -0.030, nucleon_dmin
-    }};
+  else if (species == "Ca40") {
+    if (nucleusConfigPath==""){
+      return NucleusPtr{new DoubleWoodsSaxonNucleus{
+        40, 20, _R_p, _R_n, _a0, _a_n, _w_p, _w_n, nucleon_dmin
+      }};
+    } else {
+      return ManualNucleus2::create(40, nucleusConfigPath);
+    }
+  }
+  else if (species == "Ca48") {
+    if (nucleusConfigPath==""){
+      return NucleusPtr{new DoubleWoodsSaxonNucleus{
+        48, 20, _R_p, _R_n, _a0, _a_n, _w_p, _w_n, nucleon_dmin
+      }};
+    } else {
+      return ManualNucleus2::create(48, nucleusConfigPath);
+    }
+  }
   else if (species == "Cu")
     return NucleusPtr{new WoodsSaxonNucleus{
        63, 4.20, 0.596, nucleon_dmin
@@ -356,15 +366,15 @@ void WoodsSaxonNucleus::sample_nucleons_impl() {
 // Extend the W-S dist out to R + 10a; for typical values of (R, a), the
 // probability of sampling a nucleon beyond this radius is O(10^-5).
 DoubleWoodsSaxonNucleus::DoubleWoodsSaxonNucleus(
-    std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double w, double dmin)
+    std::size_t A, int Z, double R_p, double R_n, double a_p, double a_n, double w_p, double w_n, double dmin)
     : MinDistNucleus(A, dmin),
       Z_(Z),
       R_max_(std::fmax(R_p, R_n)),
       a_max_(std::fmax(a_p, a_n)),
-      woods_saxon_dist_p_(1000, 0., R_p + 10.*a_p,
-        [R_p, a_p, w](double r) { return (r*r + w*r*r*r*r/R_p/R_p)/(1.+std::exp((r-R_p)/a_p)); }),
-      woods_saxon_dist_n_(1000, 0., R_n + 10.*a_n,
-        [R_n, a_n, w](double r) { return (r*r + w*r*r*r*r/R_n/R_n)/(1.+std::exp((r-R_n)/a_n)); })
+      woods_saxon_dist_p_(1000, 0., R_p + 9.*a_p,
+        [R_p, a_p, w_p](double r) { return (r*r + w_p*r*r*r*r/R_p/R_p)/(1.+std::exp((r-R_p)/a_p)); }),
+      woods_saxon_dist_n_(1000, 0., R_n + 9.*a_n,
+        [R_n, a_n, w_n](double r) { return (r*r + w_n*r*r*r*r/R_n/R_n)/(1.+std::exp((r-R_n)/a_n)); })
 {}
 
 /// Return something a bit smaller than the true maximum radius.  The

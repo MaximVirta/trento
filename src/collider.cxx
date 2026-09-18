@@ -31,6 +31,8 @@ NucleusPtr create_nucleus(const VarMap& var_map, std::size_t index) {
   const auto& a_n = var_map["an"].as<double>();
   const auto& R_p = var_map["Rp"].as<double>();
   const auto& R_n = var_map["Rn"].as<double>();
+  const auto& w_p = var_map["wp"].as<double>();
+  const auto& w_n = var_map["wn"].as<double>();
 
   const auto& gamma_mean = var_map["y-mean"].as<double>();
   const auto& gamma_std = var_map["y-std"].as<double>();
@@ -59,7 +61,7 @@ NucleusPtr create_nucleus(const VarMap& var_map, std::size_t index) {
     beta2 = beta2_mean;
   }
 
-  return Nucleus::create(species, nucleon_dmin, a0, beta2, beta3, beta4, gamma, nucleusConfigPath, R_p, R_n, a_n);
+  return Nucleus::create(species, nucleon_dmin, a0, beta2, beta3, beta4, gamma, nucleusConfigPath, R_p, R_n, a_n, w_p, w_n);
 }
 
 // Determine the maximum impact parameter.  If the configuration contains a
